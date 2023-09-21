@@ -94,4 +94,16 @@ public class RMQTransactionSynchronization implements TransactionSynchronization
         messageDelay = null;
     }
 
+    @Override
+    public void suspend() {
+    }
+
+    @Override
+    public void resume() {
+    }
+
+    @Override
+    public void flush() {
+    }
+
 }
