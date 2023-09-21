@@ -11,12 +11,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class RMQHelper {
 
     public static void syncSend(final RocketMQTemplate rocketMQTemplate, final String destination,
-            final Message message) {
+            final Message<Object> message) {
         syncSend(rocketMQTemplate, destination, message, null);
     }
 
     public static void syncSend(final RocketMQTemplate rocketMQTemplate, final String destination,
-            final Message message, final String messageDelay) {
+            final Message<Object> message, final String messageDelay) {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(
                     new RMQTransactionSynchronization(rocketMQTemplate, destination, message, messageDelay));

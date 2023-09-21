@@ -2,8 +2,6 @@ package com.github.jsbxyyx.transaction.rmq.domain;
 
 import java.util.Date;
 
-import org.springframework.messaging.support.GenericMessage;
-
 /**
  * @author jsbxyyx
  * @since 1.0.0
@@ -21,8 +19,6 @@ public class MqMsg {
     private Integer retryTimes;
     private Date gmtCreate;
     private Date gmtModified;
-
-    private GenericMessage message;
 
     public Long getId() {
         return id;
@@ -109,15 +105,6 @@ public class MqMsg {
 
     public MqMsg setGmtModified(Date gmtModified) {
         this.gmtModified = gmtModified;
-        return this;
-    }
-
-    public GenericMessage getMessage() {
-        return message;
-    }
-
-    public MqMsg setMessage(GenericMessage message) {
-        this.message = message;
         return this;
     }
 

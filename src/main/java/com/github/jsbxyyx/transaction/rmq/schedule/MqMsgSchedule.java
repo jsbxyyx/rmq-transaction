@@ -26,18 +26,17 @@ import com.github.jsbxyyx.transaction.rmq.domain.MqMsg;
  */
 @Component
 public class MqMsgSchedule implements InitializingBean {
-    
-    private static final Logger log = LoggerFactory.getLogger(MqMsgSchedule.class);
-    
-    private static final ScheduledThreadPoolExecutor EXECUTOR =
-            new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
-                AtomicInteger threadCount = new AtomicInteger(0);
 
-                @Override
-                public Thread newThread(Runnable r) {
-                    return new Thread(r, "mq-transaction-" + threadCount.getAndIncrement() + "-" + r.hashCode());
-                }
-            }, new ThreadPoolExecutor.DiscardPolicy());
+    private static final Logger log = LoggerFactory.getLogger(MqMsgSchedule.class);
+
+    private static final ScheduledThreadPoolExecutor EXECUTOR = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
+        AtomicInteger threadCount = new AtomicInteger(0);
+
+        @Override
+        public Thread newThread(Runnable r) {
+            return new Thread(r, "mq-transaction-" + threadCount.getAndIncrement() + "-" + r.hashCode());
+        }
+    }, new ThreadPoolExecutor.DiscardPolicy());
 
     @Override
     public void afterPropertiesSet() throws Exception {
@@ -58,12 +57,15 @@ public class MqMsgSchedule implements InitializingBean {
                     if (mqMsg.getRetryTimes() >= MqMsgDao.MAX_RETRY_TIMES) {
                         log.error("mqMsg retry times reach {}, id:[{}]", MqMsgDao.MAX_RETRY_TIMES, mqMsg.getId());
                     } else {
-                        RocketMQTemplate rocketMQClientTemplate = (RocketMQTemplate) SpringContextUtils.getBean(mqMsg.getMqTemplateName());
+                        RocketMQTemplate rocketMQClientTemplate = (RocketMQTemplate) SpringContextUtils
+                                .getBean(mqMsg.getMqTemplateName());
                         try {
-                            rocketMQClientTemplate.syncSend(mqMsg.getMqDestination(),
-                                    mqMsg.getMessage(),
-                                    rocketMQClientTemplate.getProducer().getSendMsgTimeout(),
-                                    mqMsg.getMqDelay() == null ? 0 : Integer.valueOf(mqMsg.getMqDelay()));
+                            rocketMQClientTemplate.syncSend( //
+                                    mqMsg.getMqDestination(), //
+                                    MqMsgDao.json2Message(mqMsg.getPayload()), //
+                                    rocketMQClientTemplate.getProducer().getSendMsgTimeout(), //
+                                    mqMsg.getMqDelay() == null ? 0 : Integer.valueOf(mqMsg.getMqDelay())//
+                            );
                             MqMsgDao.deleteMsgById(entry.getValue(), mqMsg.getId());
                         } catch (Exception e) {
                             MqMsgDao.updateMsgRetryTimes(entry.getValue(), mqMsg.getId());
@@ -77,4 +79,3 @@ public class MqMsgSchedule implements InitializingBean {
         }
     }
 }
-

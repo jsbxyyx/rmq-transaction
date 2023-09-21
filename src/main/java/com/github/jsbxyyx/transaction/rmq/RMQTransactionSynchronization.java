@@ -30,11 +30,11 @@ public class RMQTransactionSynchronization implements TransactionSynchronization
     private Long id;
     private RocketMQTemplate rocketMQTemplate;
     private String destination;
-    private Message message;
+    private Message<Object> message;
     private String messageDelay;
 
     public RMQTransactionSynchronization(RocketMQTemplate rocketMQTemplate, String destination, //
-            Message message, String messageDelay) {
+            Message<Object> message, String messageDelay) {
         this.rocketMQTemplate = rocketMQTemplate;
         this.destination = destination;
         this.message = message;

@@ -93,10 +93,7 @@ public class MqMsgDao {
                 mqMsg.setMqDestination(rs.getString(MQ_DESTINATION));
                 mqMsg.setMqTimeout(rs.getLong(MQ_TIMEOUT));
                 mqMsg.setMqDelay(rs.getString(MQ_DELAY));
-                Map<String, Object> map = MqJson.fromJson(rs.getString(PAYLOAD));
-                GenericMessage<Object> message = new GenericMessage<>(map.get("payload"),
-                        (Map<String, Object>) map.get("headers"));
-                mqMsg.setMessage(message);
+                mqMsg.setPayload(rs.getString(PAYLOAD));
                 mqMsg.setRetryTimes(rs.getInt(RETRY_TIMES));
                 mqMsg.setGmtCreate(rs.getTimestamp(GMT_CREATE));
                 mqMsg.setGmtModified(rs.getTimestamp(GMT_MODIFIED));
@@ -111,12 +108,10 @@ public class MqMsgDao {
     }
 
     public static void insertMsg(ConnectionHolder connectionHolder, long id, String mqTemplateName,
-            String mqDestination, Message message, String messageDelay) {
+            String mqDestination, Message<Object> message, String messageDelay) {
         Connection connection = connectionHolder.getConnection();
         PreparedStatement ps = null;
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("payload", message.getPayload());
-        payload.put("headers", message.getHeaders());
+        Map<String, Object> payload = message2Map(message);
 
         try {
             ps = connection.prepareStatement(SQL_INSERT_MSG);
@@ -195,6 +190,22 @@ public class MqMsgDao {
                 }
             }
         }
+    }
+    
+    @SuppressWarnings("unchecked")
+    public static GenericMessage<Object> json2Message(String payload) {
+        Map<String, Object> map = MqJson.fromJson(payload);
+        GenericMessage<Object> message = new GenericMessage<>(//
+                map.get("payload"), (Map<String, Object>) map.get("headers")//
+        );
+        return message;
+    }
+    
+    public static Map<String, Object> message2Map(Message<Object> message) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("payload", message.getPayload());
+        payload.put("headers", message.getHeaders());
+        return payload;
     }
 
 }

@@ -44,9 +44,9 @@ public class SpringContextUtils implements ApplicationContextAware {
         return getApplicationContext().getBean(name, clazz);
     }
 
-    public static String findBeanName(Class clazz, Object obj) {
-        Map<String, Object> beans = getApplicationContext().getBeansOfType(clazz);
-        for (Map.Entry<String, Object> entry : beans.entrySet()) {
+    public static String findBeanName(Class<?> clazz, Object obj) {
+        Map<String, ?> beans = getApplicationContext().getBeansOfType(clazz);
+        for (Map.Entry<String, ?> entry : beans.entrySet()) {
             Object value = entry.getValue();
             if (value == obj) {
                 return entry.getKey();
