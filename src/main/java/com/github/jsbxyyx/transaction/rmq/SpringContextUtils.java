@@ -22,7 +22,7 @@ public class SpringContextUtils implements ApplicationContextAware {
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
         context = applicationContext;
-        log.info("=== rmq transaction ApplicationContextUtils init ===");
+        log.info("=== rmq transaction applicationContext init ===");
     }
     
     public static ApplicationContext getApplicationContext() {
