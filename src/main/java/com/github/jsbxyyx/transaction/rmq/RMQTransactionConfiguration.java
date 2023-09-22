@@ -2,6 +2,8 @@ package com.github.jsbxyyx.transaction.rmq;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 
 import com.github.jsbxyyx.transaction.rmq.schedule.MqMsgSchedule;
 
@@ -9,13 +11,14 @@ import com.github.jsbxyyx.transaction.rmq.schedule.MqMsgSchedule;
 public class RMQTransactionConfiguration {
     
     @Bean
-    public MqMsgSchedule mqMsgSchedule() {
-        return new MqMsgSchedule();
+    @Order(Ordered.HIGHEST_PRECEDENCE)
+    public SpringContextUtils springContextUtils() {
+        return new SpringContextUtils();
     }
     
     @Bean
-    public SpringContextUtils springContextUtils() {
-        return new SpringContextUtils();
+    public MqMsgSchedule mqMsgSchedule() {
+        return new MqMsgSchedule();
     }
 
 }
