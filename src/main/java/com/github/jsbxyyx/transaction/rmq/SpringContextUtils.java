@@ -8,13 +8,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
-import org.springframework.stereotype.Component;
 
 /**
  * @author jsbxyyx
  * @since 1.0.0
  */
-@Component
 public class SpringContextUtils implements ApplicationContextAware {
     
     private static final Logger log = LoggerFactory.getLogger(SpringContextUtils.class);

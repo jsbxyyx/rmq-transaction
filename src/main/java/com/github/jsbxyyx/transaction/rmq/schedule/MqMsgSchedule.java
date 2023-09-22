@@ -14,7 +14,6 @@ import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.stereotype.Component;
 
 import com.github.jsbxyyx.transaction.rmq.SpringContextUtils;
 import com.github.jsbxyyx.transaction.rmq.dao.MqMsgDao;
@@ -24,7 +23,6 @@ import com.github.jsbxyyx.transaction.rmq.domain.MqMsg;
  * @author jsbxyyx
  * @since 1.0.0
  */
-@Component
 public class MqMsgSchedule implements InitializingBean {
 
     private static final Logger log = LoggerFactory.getLogger(MqMsgSchedule.class);
