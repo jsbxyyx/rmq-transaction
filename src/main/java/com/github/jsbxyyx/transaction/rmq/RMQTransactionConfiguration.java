@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import com.github.jsbxyyx.transaction.rmq.schedule.MqMsgSchedule;
 
 @Configuration
-public class RMQConfiguration {
+public class RMQTransactionConfiguration {
     
     @Bean
     public MqMsgSchedule mqMsgSchedule() {

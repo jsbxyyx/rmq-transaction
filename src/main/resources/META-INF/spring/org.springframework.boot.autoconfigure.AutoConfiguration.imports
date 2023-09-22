@@ -1,2 +1,2 @@
 org.apache.rocketmq.spring.autoconfigure.RocketMQAutoConfiguration
-com.github.jsbxyyx.transaction.rmq.RMQConfiguration
+com.github.jsbxyyx.transaction.rmq.RMQTransactionConfiguration

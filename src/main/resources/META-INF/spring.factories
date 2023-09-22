@@ -1,1 +1,2 @@
-org.springframework.boot.autoconfigure.EnableAutoConfiguration=com.github.jsbxyyx.transaction.rmq.RMQConfiguration
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+com.github.jsbxyyx.transaction.rmq.RMQTransactionConfiguration
