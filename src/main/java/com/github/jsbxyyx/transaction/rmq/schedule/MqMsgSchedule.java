@@ -55,13 +55,13 @@ public class MqMsgSchedule implements InitializingBean {
                     if (mqMsg.getRetryTimes() >= MqMsgDao.MAX_RETRY_TIMES) {
                         log.error("mqMsg retry times reach {}, id:[{}]", MqMsgDao.MAX_RETRY_TIMES, mqMsg.getId());
                     } else {
-                        RocketMQTemplate rocketMQClientTemplate = (RocketMQTemplate) SpringContextUtils
+                        RocketMQTemplate template = (RocketMQTemplate) SpringContextUtils
                                 .getBean(mqMsg.getMqTemplateName());
                         try {
-                            rocketMQClientTemplate.syncSend( //
+                            template.syncSend( //
                                     mqMsg.getMqDestination(), //
                                     MqMsgDao.json2Message(mqMsg.getPayload()), //
-                                    rocketMQClientTemplate.getProducer().getSendMsgTimeout(), //
+                                    template.getProducer().getSendMsgTimeout(), //
                                     mqMsg.getMqDelay() == null ? 0 : Integer.valueOf(mqMsg.getMqDelay())//
                             );
                             MqMsgDao.deleteMsgById(entry.getValue(), mqMsg.getId());
