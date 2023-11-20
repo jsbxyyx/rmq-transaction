@@ -63,9 +63,10 @@ public class MqMsgDao {
             .replace("#{all_field}", ALL_FIELD)//
             .replace("#{all_field_placeholder}", ALL_FIELD_PLACEHOLDER);
 
-    private static final String SQL_UPDATE_RETRY_TIMES = "update #{table} set #{retry_times} = #{retry_times} + 1, #{update_time} = ? where #{id} = ?"//
+    private static final String SQL_UPDATE_RETRY_TIMES = "update #{table} set #{retry_times} = #{retry_times} + 1, #{gmt_modified} = ? where #{id} = ?"//
             .replace("#{table}", TABLE)//
             .replace("#{retry_times}", RETRY_TIMES)//
+            .replace("#{gmt_modified}", GMT_MODIFIED)//
             .replace("#{id}", ID);
     
     private static final String SQL_DELETE_MSG = "DELETE FROM #{table} where #{id} = ?" //
