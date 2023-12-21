@@ -13,6 +13,7 @@ import javax.sql.DataSource;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 
 import com.github.jsbxyyx.transaction.rmq.SpringContextUtils;
@@ -23,7 +24,7 @@ import com.github.jsbxyyx.transaction.rmq.domain.MqMsg;
  * @author jsbxyyx
  * @since 1.0.0
  */
-public class MqMsgSchedule implements InitializingBean {
+public class MqMsgSchedule implements InitializingBean, DisposableBean {
 
     private static final Logger log = LoggerFactory.getLogger(MqMsgSchedule.class);
 
@@ -44,6 +45,11 @@ public class MqMsgSchedule implements InitializingBean {
                 retrySendTask();
             }
         }, 0, 5000, TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    public void destroy() throws Exception {
+        EXECUTOR.shutdown();
     }
 
     public void retrySendTask() {
@@ -76,4 +82,5 @@ public class MqMsgSchedule implements InitializingBean {
             log.error("task error.", e);
         }
     }
+
 }
