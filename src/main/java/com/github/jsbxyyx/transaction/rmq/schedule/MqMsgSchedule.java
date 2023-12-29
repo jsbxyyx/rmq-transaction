@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.core.env.Environment;
 
 import javax.sql.DataSource;
 import java.util.Date;
@@ -28,8 +29,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
     private static final Logger log = LoggerFactory.getLogger(MqMsgSchedule.class);
 
     private static final ScheduledThreadPoolExecutor EXECUTOR_RETRY = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
-        AtomicInteger threadCount = new AtomicInteger(0);
-
+        final AtomicInteger threadCount = new AtomicInteger(0);
         @Override
         public Thread newThread(Runnable r) {
             return new Thread(r, "mq-transaction-retry-" + threadCount.getAndIncrement() + "-" + r.hashCode());
@@ -37,8 +37,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
     }, new ThreadPoolExecutor.DiscardPolicy());
 
     private static final ScheduledThreadPoolExecutor EXECUTOR_DELETE = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
-        AtomicInteger threadCount = new AtomicInteger(0);
-
+        final AtomicInteger threadCount = new AtomicInteger(0);
         @Override
         public Thread newThread(Runnable r) {
             return new Thread(r, "mq-transaction-delete-" + threadCount.getAndIncrement() + "-" + r.hashCode());
@@ -47,25 +46,38 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
 
     @Override
     public void afterPropertiesSet() throws Exception {
+        Environment env = SpringContextUtils.getApplicationContext().getEnvironment();
+
+        int retryDelay = Integer.parseInt(env.getProperty("rmq.transaction.retry.delay", "5000"));
         EXECUTOR_RETRY.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
                 retrySendTask();
             }
-        }, 0, 5000, TimeUnit.MILLISECONDS);
+        }, 0, retryDelay, TimeUnit.MILLISECONDS);
 
+        int deleteDelay = Integer.parseInt(env.getProperty("rmq.transaction.delete.delay", "600000"));
+        int deleteInterval = Integer.parseInt(env.getProperty("rmq.transaction.delete.interval", "600000"));
         EXECUTOR_DELETE.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
-                deletePublishedRecord(System.currentTimeMillis() - 600000);
+                deletePublishedRecord(System.currentTimeMillis() - deleteInterval);
             }
-        }, 0, 600000, TimeUnit.MILLISECONDS);
+        }, 0, deleteDelay, TimeUnit.MILLISECONDS);
     }
 
     @Override
     public void destroy() throws Exception {
-        EXECUTOR_RETRY.shutdown();
-        EXECUTOR_DELETE.shutdown();
+        try {
+            EXECUTOR_RETRY.shutdown();
+        } catch (Exception e) {
+            log.warn(e.getMessage(), e);
+        }
+        try {
+            EXECUTOR_DELETE.shutdown();
+        } catch (Exception e) {
+            log.warn(e.getMessage(), e);
+        }
     }
 
     public void deletePublishedRecord(long gmtCreateBefore) {
