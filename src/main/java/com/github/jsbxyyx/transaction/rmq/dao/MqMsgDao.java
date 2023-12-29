@@ -1,5 +1,14 @@
 package com.github.jsbxyyx.transaction.rmq.dao;
 
+import com.github.jsbxyyx.transaction.rmq.domain.MqMsg;
+import com.github.jsbxyyx.transaction.rmq.util.MqJson;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.datasource.ConnectionHolder;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.support.GenericMessage;
+
+import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -10,17 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.sql.DataSource;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.datasource.ConnectionHolder;
-import org.springframework.messaging.Message;
-import org.springframework.messaging.support.GenericMessage;
-
-import com.github.jsbxyyx.transaction.rmq.domain.MqMsg;
-import com.github.jsbxyyx.transaction.rmq.util.MqJson;
-
 /**
  * @author jsbxyyx
  * @since 1.0.0
@@ -30,6 +28,7 @@ public class MqMsgDao {
     private static final Logger log = LoggerFactory.getLogger(MqMsgDao.class);
 
     public static final String STATUS_NEW = "NEW";
+    public static final String STATUS_PUBLISHED = "PUBLISHED";
     public static final Integer MAX_RETRY_TIMES = 5;
 
     private static final String COMMA = ",";
@@ -69,9 +68,19 @@ public class MqMsgDao {
             .replace("#{gmt_modified}", GMT_MODIFIED)//
             .replace("#{id}", ID);
     
-    private static final String SQL_DELETE_MSG = "DELETE FROM #{table} where #{id} = ?" //
+    private static final String SQL_DELETE_MSG = "delete from #{table} where #{id} = ?" //
             .replace("#{table}", TABLE) //
             .replace("#{id}", ID);
+
+    private static final String SQL_UPDATE_STATUS = "update #{table} set #{status} = ? where #{id} = ?"
+            .replace("#{table}", TABLE)
+            .replace("#{status}", STATUS)
+            .replace("#{id}", ID);
+
+    private static final String SQL_DELETE_PUBLISHED_MSG = "delete from #{table} where #{status} = ? and #{gmt_create} < ?"
+            .replace("#{table}", TABLE)
+            .replace("#{status}", STATUS)
+            .replace("#{gmt_create}", GMT_CREATE);
 
     public static List<MqMsg> listMsg(DataSource dataSource) {
         Connection conn = null;
@@ -173,6 +182,45 @@ public class MqMsgDao {
                 log.error("delete mq msg failed. id:[{}]", id);
                 throw new RuntimeException("delete mq msg failed. id:" + id);
             }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(ps, conn);
+        }
+    }
+
+    public static void updateStatusById(DataSource dataSource, String status, Long id) {
+        Connection conn = null;
+        PreparedStatement ps = null;
+        try {
+            conn = dataSource.getConnection();
+            ps = conn.prepareStatement(SQL_UPDATE_STATUS);
+            int i = 0;
+            ps.setObject(++i, status);
+            ps.setObject(++i, id);
+            int affect = ps.executeUpdate();
+            if (affect <= 0) {
+                log.error("update mq msg status failed. id:[{}]", id);
+                throw new RuntimeException("update mq msg status failed. id:" + id);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(ps, conn);
+        }
+    }
+
+    public static void deletePublishedMsg(DataSource dataSource, Date gmtCreateBefore) {
+        Connection conn = null;
+        PreparedStatement ps = null;
+        try {
+            conn = dataSource.getConnection();
+            ps = conn.prepareStatement(SQL_DELETE_PUBLISHED_MSG);
+            int i = 0;
+            ps.setObject(++i, STATUS_PUBLISHED);
+            ps.setObject(++i, gmtCreateBefore);
+            int affect = ps.executeUpdate();
+            log.debug("delete mq msg published. affect:[{}]", affect);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } finally {

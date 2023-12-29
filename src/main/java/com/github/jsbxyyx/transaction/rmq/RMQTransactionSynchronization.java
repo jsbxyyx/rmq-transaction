@@ -1,9 +1,7 @@
 package com.github.jsbxyyx.transaction.rmq;
 
-import java.util.Map;
-
-import javax.sql.DataSource;
-
+import com.github.jsbxyyx.transaction.rmq.dao.MqMsgDao;
+import com.github.jsbxyyx.transaction.rmq.util.MqId;
 import org.apache.rocketmq.client.producer.SendResult;
 import org.apache.rocketmq.client.producer.SendStatus;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
@@ -14,8 +12,8 @@ import org.springframework.messaging.Message;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import com.github.jsbxyyx.transaction.rmq.dao.MqMsgDao;
-import com.github.jsbxyyx.transaction.rmq.util.MqId;
+import javax.sql.DataSource;
+import java.util.Map;
 
 /**
  * @author jsbxyyx
@@ -73,7 +71,7 @@ public class RMQTransactionSynchronization implements TransactionSynchronization
             SendResult sendResult = rocketMQTemplate.syncSend(destination, message, rocketMQTemplate.getProducer().getSendMsgTimeout(),
                     messageDelay == null ? 0 : Integer.parseInt(messageDelay));
             if (sendResult.getSendStatus() == SendStatus.SEND_OK) {
-                MqMsgDao.deleteMsgById(dataSource, this.id);
+                MqMsgDao.updateStatusById(dataSource, MqMsgDao.STATUS_PUBLISHED, this.id);
             } else {
                 log.error("mq send message failed. sendStatus:[{}]", sendResult.getSendStatus());
             }

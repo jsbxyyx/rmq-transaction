@@ -1,5 +1,16 @@
 package com.github.jsbxyyx.transaction.rmq.schedule;
 
+import com.github.jsbxyyx.transaction.rmq.SpringContextUtils;
+import com.github.jsbxyyx.transaction.rmq.dao.MqMsgDao;
+import com.github.jsbxyyx.transaction.rmq.domain.MqMsg;
+import org.apache.rocketmq.spring.core.RocketMQTemplate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.beans.factory.InitializingBean;
+
+import javax.sql.DataSource;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -7,18 +18,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import javax.sql.DataSource;
-
-import org.apache.rocketmq.spring.core.RocketMQTemplate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.DisposableBean;
-import org.springframework.beans.factory.InitializingBean;
-
-import com.github.jsbxyyx.transaction.rmq.SpringContextUtils;
-import com.github.jsbxyyx.transaction.rmq.dao.MqMsgDao;
-import com.github.jsbxyyx.transaction.rmq.domain.MqMsg;
 
 /**
  * @author jsbxyyx
@@ -28,28 +27,56 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
 
     private static final Logger log = LoggerFactory.getLogger(MqMsgSchedule.class);
 
-    private static final ScheduledThreadPoolExecutor EXECUTOR = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
+    private static final ScheduledThreadPoolExecutor EXECUTOR_RETRY = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
         AtomicInteger threadCount = new AtomicInteger(0);
 
         @Override
         public Thread newThread(Runnable r) {
-            return new Thread(r, "mq-transaction-" + threadCount.getAndIncrement() + "-" + r.hashCode());
+            return new Thread(r, "mq-transaction-retry-" + threadCount.getAndIncrement() + "-" + r.hashCode());
+        }
+    }, new ThreadPoolExecutor.DiscardPolicy());
+
+    private static final ScheduledThreadPoolExecutor EXECUTOR_DELETE = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
+        AtomicInteger threadCount = new AtomicInteger(0);
+
+        @Override
+        public Thread newThread(Runnable r) {
+            return new Thread(r, "mq-transaction-delete-" + threadCount.getAndIncrement() + "-" + r.hashCode());
         }
     }, new ThreadPoolExecutor.DiscardPolicy());
 
     @Override
     public void afterPropertiesSet() throws Exception {
-        EXECUTOR.scheduleWithFixedDelay(new Runnable() {
+        EXECUTOR_RETRY.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
                 retrySendTask();
             }
         }, 0, 5000, TimeUnit.MILLISECONDS);
+
+        EXECUTOR_DELETE.scheduleWithFixedDelay(new Runnable() {
+            @Override
+            public void run() {
+                deletePublishedRecord(System.currentTimeMillis() - 600000);
+            }
+        }, 0, 600000, TimeUnit.MILLISECONDS);
     }
 
     @Override
     public void destroy() throws Exception {
-        EXECUTOR.shutdown();
+        EXECUTOR_RETRY.shutdown();
+        EXECUTOR_DELETE.shutdown();
+    }
+
+    public void deletePublishedRecord(long gmtCreateBefore) {
+        try {
+            Map<String, DataSource> beans = SpringContextUtils.getApplicationContext().getBeansOfType(DataSource.class);
+            for (Map.Entry<String, DataSource> entry : beans.entrySet()) {
+                MqMsgDao.deletePublishedMsg(entry.getValue(), new Date(gmtCreateBefore));
+            }
+        } catch (Exception e) {
+            log.error("delete published task error.", e);
+        }
     }
 
     public void retrySendTask() {
@@ -68,7 +95,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
                                     mqMsg.getMqDestination(), //
                                     MqMsgDao.json2Message(mqMsg.getPayload()), //
                                     template.getProducer().getSendMsgTimeout(), //
-                                    mqMsg.getMqDelay() == null ? 0 : Integer.valueOf(mqMsg.getMqDelay())//
+                                    mqMsg.getMqDelay() == null ? 0 : Integer.parseInt(mqMsg.getMqDelay())//
                             );
                             MqMsgDao.deleteMsgById(entry.getValue(), mqMsg.getId());
                         } catch (Exception e) {
@@ -79,7 +106,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
                 }
             }
         } catch (Exception e) {
-            log.error("task error.", e);
+            log.error("retry task error.", e);
         }
     }
 
