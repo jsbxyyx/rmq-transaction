@@ -3,6 +3,8 @@ package com.github.jsbxyyx.transaction.rmq.schedule;
 import com.github.jsbxyyx.transaction.rmq.SpringContextUtils;
 import com.github.jsbxyyx.transaction.rmq.dao.MqMsgDao;
 import com.github.jsbxyyx.transaction.rmq.domain.MqMsg;
+import org.apache.rocketmq.client.producer.SendResult;
+import org.apache.rocketmq.client.producer.SendStatus;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +32,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
 
     private static final ScheduledThreadPoolExecutor EXECUTOR_RETRY = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
         final AtomicInteger threadCount = new AtomicInteger(0);
+
         @Override
         public Thread newThread(Runnable r) {
             return new Thread(r, "mq-transaction-retry-" + threadCount.getAndIncrement() + "-" + r.hashCode());
@@ -38,6 +41,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
 
     private static final ScheduledThreadPoolExecutor EXECUTOR_DELETE = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
         final AtomicInteger threadCount = new AtomicInteger(0);
+
         @Override
         public Thread newThread(Runnable r) {
             return new Thread(r, "mq-transaction-delete-" + threadCount.getAndIncrement() + "-" + r.hashCode());
@@ -103,13 +107,18 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
                         RocketMQTemplate template = (RocketMQTemplate) SpringContextUtils
                                 .getBean(mqMsg.getMqTemplateName());
                         try {
-                            template.syncSend( //
-                                    mqMsg.getMqDestination(), //
-                                    MqMsgDao.json2Message(mqMsg.getPayload()), //
-                                    template.getProducer().getSendMsgTimeout(), //
-                                    mqMsg.getMqDelay() == null ? 0 : Integer.parseInt(mqMsg.getMqDelay())//
+                            SendResult sendResult = template.syncSend(
+                                    mqMsg.getMqDestination(),
+                                    MqMsgDao.json2Message(mqMsg.getPayload()),
+                                    template.getProducer().getSendMsgTimeout(),
+                                    mqMsg.getMqDelay() == null ? 0 : Integer.parseInt(mqMsg.getMqDelay())
                             );
-                            MqMsgDao.deleteMsgById(entry.getValue(), mqMsg.getId());
+                            if (sendResult.getSendStatus() == SendStatus.SEND_OK) {
+                                MqMsgDao.updateStatusById(entry.getValue(), MqMsgDao.STATUS_PUBLISHED, mqMsg.getId());
+                            } else {
+                                MqMsgDao.updateMsgRetryTimes(entry.getValue(), mqMsg.getId());
+                                log.error("[task] mq send message failed. sendStatus:[{}]", sendResult.getSendStatus());
+                            }
                         } catch (Exception e) {
                             MqMsgDao.updateMsgRetryTimes(entry.getValue(), mqMsg.getId());
                             log.error("[task] mq send failed. mqMsg:[{}]", mqMsg, e);
