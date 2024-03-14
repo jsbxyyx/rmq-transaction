@@ -71,6 +71,7 @@ public class RMQTransactionSynchronization implements TransactionSynchronization
             SendResult sendResult = rocketMQTemplate.syncSend(destination, message, rocketMQTemplate.getProducer().getSendMsgTimeout(),
                     messageDelay == null ? 0 : Integer.parseInt(messageDelay));
             if (sendResult.getSendStatus() == SendStatus.SEND_OK) {
+                log.debug("send message ok. [{}] [{}]", destination, sendResult.getMsgId());
                 MqMsgDao.updateStatusById(dataSource, MqMsgDao.STATUS_PUBLISHED, this.id);
             } else {
                 log.error("mq send message failed. sendStatus:[{}]", sendResult.getSendStatus());

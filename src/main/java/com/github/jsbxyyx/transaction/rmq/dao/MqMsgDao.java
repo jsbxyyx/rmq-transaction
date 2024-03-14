@@ -141,6 +141,7 @@ public class MqMsgDao {
             if (affect <= 0) {
                 throw new RuntimeException("insert mq msg affect : " + affect);
             }
+            log.debug("insertMsg : [{}]", id);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } finally {
@@ -162,6 +163,7 @@ public class MqMsgDao {
                 log.error("update mq msg retry_times failed. id:[{}]", id);
                 throw new RuntimeException("update mq msg retry_times failed. id:" + id);
             }
+            log.debug("updateMsgRetryTimes : [{}]", id);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } finally {
@@ -182,6 +184,7 @@ public class MqMsgDao {
                 log.error("delete mq msg failed. id:[{}]", id);
                 throw new RuntimeException("delete mq msg failed. id:" + id);
             }
+            log.debug("deleteMsgById : [{}]", id);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } finally {
@@ -203,6 +206,7 @@ public class MqMsgDao {
                 log.error("update mq msg status failed. id:[{}]", id);
                 throw new RuntimeException("update mq msg status failed. id:" + id);
             }
+            log.debug("updateStatusById : [{}] [{}]", status, id);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } finally {
@@ -220,7 +224,7 @@ public class MqMsgDao {
             ps.setObject(++i, STATUS_PUBLISHED);
             ps.setObject(++i, gmtCreateBefore);
             int affect = ps.executeUpdate();
-            log.debug("delete mq msg published. affect:[{}]", affect);
+            log.debug("delete mq msg published. affect : [{}] gmtCreateBefore : [{}]", affect, gmtCreateBefore);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } finally {
