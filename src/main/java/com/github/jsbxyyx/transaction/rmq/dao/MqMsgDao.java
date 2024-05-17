@@ -4,7 +4,6 @@ import com.github.jsbxyyx.transaction.rmq.domain.MqMsg;
 import com.github.jsbxyyx.transaction.rmq.util.MqJson;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.jdbc.datasource.ConnectionHolder;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.GenericMessage;
 
@@ -117,9 +116,8 @@ public class MqMsgDao {
         }
     }
 
-    public static void insertMsg(ConnectionHolder connectionHolder, long id, String mqTemplateName,
+    public static void insertMsg(Connection connection, long id, String mqTemplateName,
             String mqDestination, Message<Object> message, String messageDelay) {
-        Connection connection = connectionHolder.getConnection();
         PreparedStatement ps = null;
         Map<String, Object> payload = message2Map(message);
 

@@ -61,7 +61,7 @@ public class RMQTransactionSynchronization implements TransactionSynchronization
         }
         this.id = MqId.nextId();
         final String mqTemplateName = SpringContextUtils.findBeanName(rocketMQTemplate.getClass(), rocketMQTemplate);
-        MqMsgDao.insertMsg(connectionHolder, id, mqTemplateName, destination, message, messageDelay);
+        MqMsgDao.insertMsg(connectionHolder.getConnection(), id, mqTemplateName, destination, message, messageDelay);
     }
 
     @Override
