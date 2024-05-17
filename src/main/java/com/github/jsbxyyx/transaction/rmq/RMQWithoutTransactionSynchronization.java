@@ -7,32 +7,31 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.rocketmq.client.producer.SendResult;
 import org.apache.rocketmq.client.producer.SendStatus;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
-import org.springframework.jdbc.datasource.ConnectionHolder;
 import org.springframework.messaging.Message;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import javax.sql.DataSource;
-import java.util.Map;
+import java.sql.Connection;
+import java.sql.SQLException;
 
 /**
  * @author jsbxyyx
  * @since 1.0.0
  */
-public class RMQTransactionSynchronization implements TransactionSynchronization {
+public class RMQWithoutTransactionSynchronization implements TransactionSynchronization {
 
     protected final Log log = LogFactory.getLog(getClass());
 
     private DataSource dataSource;
-    private ConnectionHolder connectionHolder;
     private Long id;
     private RocketMQTemplate rocketMQTemplate;
     private String destination;
     private Message<Object> message;
     private String messageDelay;
 
-    public RMQTransactionSynchronization(RocketMQTemplate rocketMQTemplate, String destination, //
-                                         Message<Object> message, String messageDelay) {
+    public RMQWithoutTransactionSynchronization(RocketMQTemplate rocketMQTemplate, String destination, //
+                                                Message<Object> message, String messageDelay) {
         this.rocketMQTemplate = rocketMQTemplate;
         this.destination = destination;
         this.message = message;
@@ -45,25 +44,14 @@ public class RMQTransactionSynchronization implements TransactionSynchronization
 
     @Override
     public void beforeCommit(boolean readOnly) {
-        Map<Object, Object> resourceMap = TransactionSynchronizationManager.getResourceMap();
-        for (Map.Entry<Object, Object> entry : resourceMap.entrySet()) {
-            Object key = entry.getKey();
-            Object value = entry.getValue();
-            if (value instanceof ConnectionHolder) {
-                this.dataSource = (DataSource) key;
-                this.connectionHolder = (ConnectionHolder) value;
-                break;
-            }
-        }
-        if (connectionHolder == null) {
-            if (log.isWarnEnabled()) {
-                log.warn("connectionHolder is null");
-            }
-            return;
-        }
+        this.dataSource = SpringContextUtils.getBean(DataSource.class);
         this.id = MqId.nextId();
         final String mqTemplateName = SpringContextUtils.findBeanName(rocketMQTemplate.getClass(), rocketMQTemplate);
-        MqMsgDao.insertMsg(connectionHolder.getConnection(), id, mqTemplateName, destination, message, messageDelay);
+        try (Connection connection = dataSource.getConnection()) {
+            MqMsgDao.insertMsg(connection, id, mqTemplateName, destination, message, messageDelay);
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -72,11 +60,12 @@ public class RMQTransactionSynchronization implements TransactionSynchronization
             log.debug("afterCommit " + TransactionSynchronizationManager.getCurrentTransactionName());
         }
         try {
-            SendResult sendResult = rocketMQTemplate.syncSend(destination, message, rocketMQTemplate.getProducer().getSendMsgTimeout(),
+            SendResult sendResult = rocketMQTemplate.syncSend(destination, message,
+                    rocketMQTemplate.getProducer().getSendMsgTimeout(),
                     messageDelay == null ? 0 : Integer.parseInt(messageDelay));
             if (sendResult.getSendStatus() == SendStatus.SEND_OK) {
                 if (log.isDebugEnabled()) {
-                    log.debug("send message ok. destination:[" + destination + "], msgId:[" + sendResult.getMsgId() + "]");
+                    log.debug("send message ok. destination:[" + destination + "] msgId:[" + sendResult.getMsgId() + "]");
                 }
                 MqMsgDao.updateStatusById(dataSource, MqMsgDao.STATUS_PUBLISHED, this.id);
             } else {
@@ -97,7 +86,6 @@ public class RMQTransactionSynchronization implements TransactionSynchronization
             log.debug("afterCompletion " + TransactionSynchronizationManager.getCurrentTransactionName() + " : " + status);
         }
         dataSource = null;
-        connectionHolder = null;
         id = null;
         rocketMQTemplate = null;
         destination = null;

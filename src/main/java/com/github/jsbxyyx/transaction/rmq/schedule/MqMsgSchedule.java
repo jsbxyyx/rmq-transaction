@@ -3,11 +3,11 @@ package com.github.jsbxyyx.transaction.rmq.schedule;
 import com.github.jsbxyyx.transaction.rmq.SpringContextUtils;
 import com.github.jsbxyyx.transaction.rmq.dao.MqMsgDao;
 import com.github.jsbxyyx.transaction.rmq.domain.MqMsg;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.rocketmq.client.producer.SendResult;
 import org.apache.rocketmq.client.producer.SendStatus;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.core.env.Environment;
@@ -28,14 +28,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class MqMsgSchedule implements InitializingBean, DisposableBean {
 
-    private static final Logger log = LoggerFactory.getLogger(MqMsgSchedule.class);
+    private static final Log log = LogFactory.getLog(MqMsgSchedule.class);
 
     private static final ScheduledThreadPoolExecutor EXECUTOR_RETRY = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
         final AtomicInteger threadCount = new AtomicInteger(0);
 
         @Override
         public Thread newThread(Runnable r) {
-            return new Thread(r, "mq-transaction-retry-" + threadCount.getAndIncrement() + "-" + r.hashCode());
+            return new Thread(r, "rmq-transaction-retry-" + threadCount.getAndIncrement() + "-" + r.hashCode());
         }
     }, new ThreadPoolExecutor.DiscardPolicy());
 
@@ -44,7 +44,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
 
         @Override
         public Thread newThread(Runnable r) {
-            return new Thread(r, "mq-transaction-delete-" + threadCount.getAndIncrement() + "-" + r.hashCode());
+            return new Thread(r, "rmq-transaction-delete-" + threadCount.getAndIncrement() + "-" + r.hashCode());
         }
     }, new ThreadPoolExecutor.DiscardPolicy());
 
@@ -102,7 +102,9 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
                 List<MqMsg> mqMsgList = MqMsgDao.listMsg(entry.getValue());
                 for (MqMsg mqMsg : mqMsgList) {
                     if (mqMsg.getRetryTimes() >= MqMsgDao.MAX_RETRY_TIMES) {
-                        log.error("mqMsg retry times reach {}, id:[{}]", MqMsgDao.MAX_RETRY_TIMES, mqMsg.getId());
+                        if (log.isErrorEnabled()) {
+                            log.error("mqMsg retry times reach " + MqMsgDao.MAX_RETRY_TIMES + ", id:[" + mqMsg.getId() + "]");
+                        }
                     } else {
                         RocketMQTemplate template = (RocketMQTemplate) SpringContextUtils
                                 .getBean(mqMsg.getMqTemplateName());
@@ -117,11 +119,15 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
                                 MqMsgDao.updateStatusById(entry.getValue(), MqMsgDao.STATUS_PUBLISHED, mqMsg.getId());
                             } else {
                                 MqMsgDao.updateMsgRetryTimes(entry.getValue(), mqMsg.getId());
-                                log.error("[task] mq send message failed. sendStatus:[{}]", sendResult.getSendStatus());
+                                if (log.isErrorEnabled()) {
+                                    log.error("[task] mq send message failed. sendStatus:[" + sendResult.getSendStatus() + "]");
+                                }
                             }
                         } catch (Exception e) {
                             MqMsgDao.updateMsgRetryTimes(entry.getValue(), mqMsg.getId());
-                            log.error("[task] mq send failed. mqMsg:[{}]", mqMsg, e);
+                            if (log.isErrorEnabled()) {
+                                log.error("[task] mq send failed. mqMsg:[" + mqMsg + "]", e);
+                            }
                         }
                     }
                 }

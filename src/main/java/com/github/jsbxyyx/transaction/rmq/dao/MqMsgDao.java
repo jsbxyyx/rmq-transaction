@@ -2,8 +2,8 @@ package com.github.jsbxyyx.transaction.rmq.dao;
 
 import com.github.jsbxyyx.transaction.rmq.domain.MqMsg;
 import com.github.jsbxyyx.transaction.rmq.util.MqJson;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.GenericMessage;
 
@@ -24,7 +24,7 @@ import java.util.Map;
  */
 public class MqMsgDao {
 
-    private static final Logger log = LoggerFactory.getLogger(MqMsgDao.class);
+    private static final Log log = LogFactory.getLog(MqMsgDao.class);
 
     public static final String STATUS_NEW = "NEW";
     public static final String STATUS_PUBLISHED = "PUBLISHED";
@@ -66,7 +66,7 @@ public class MqMsgDao {
             .replace("#{retry_times}", RETRY_TIMES)//
             .replace("#{gmt_modified}", GMT_MODIFIED)//
             .replace("#{id}", ID);
-    
+
     private static final String SQL_DELETE_MSG = "delete from #{table} where #{id} = ?" //
             .replace("#{table}", TABLE) //
             .replace("#{id}", ID);
@@ -117,10 +117,9 @@ public class MqMsgDao {
     }
 
     public static void insertMsg(Connection connection, long id, String mqTemplateName,
-            String mqDestination, Message<Object> message, String messageDelay) {
+                                 String mqDestination, Message<Object> message, String messageDelay) {
         PreparedStatement ps = null;
         Map<String, Object> payload = message2Map(message);
-
         try {
             ps = connection.prepareStatement(SQL_INSERT_MSG);
             Date now = new Date();
@@ -137,9 +136,14 @@ public class MqMsgDao {
             ps.setObject(++i, now);
             int affect = ps.executeUpdate();
             if (affect <= 0) {
+                if (log.isErrorEnabled()) {
+                    log.error("insert mq msg affect : " + affect);
+                }
                 throw new RuntimeException("insert mq msg affect : " + affect);
             }
-            log.debug("insertMsg : [{}]", id);
+            if (log.isDebugEnabled()) {
+                log.debug("insertMsg => id:[" + id + "]");
+            }
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } finally {
@@ -158,10 +162,14 @@ public class MqMsgDao {
             ps.setObject(++i, id);
             int affect = ps.executeUpdate();
             if (affect <= 0) {
-                log.error("update mq msg retry_times failed. id:[{}]", id);
+                if (log.isErrorEnabled()) {
+                    log.error("update mq msg retry_times failed. id:[" + id + "]");
+                }
                 throw new RuntimeException("update mq msg retry_times failed. id:" + id);
             }
-            log.debug("updateMsgRetryTimes : [{}]", id);
+            if (log.isDebugEnabled()) {
+                log.debug("updateMsgRetryTimes => id:[" + id + "]");
+            }
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } finally {
@@ -179,10 +187,14 @@ public class MqMsgDao {
             ps.setObject(++i, id);
             int affect = ps.executeUpdate();
             if (affect <= 0) {
-                log.error("delete mq msg failed. id:[{}]", id);
+                if (log.isErrorEnabled()) {
+                    log.error("delete mq msg failed. id:[" + id + "]");
+                }
                 throw new RuntimeException("delete mq msg failed. id:" + id);
             }
-            log.debug("deleteMsgById : [{}]", id);
+            if (log.isDebugEnabled()) {
+                log.debug("deleteMsgById => id:[" + id + "]");
+            }
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } finally {
@@ -201,10 +213,14 @@ public class MqMsgDao {
             ps.setObject(++i, id);
             int affect = ps.executeUpdate();
             if (affect <= 0) {
-                log.error("update mq msg status failed. id:[{}]", id);
+                if (log.isErrorEnabled()) {
+                    log.error("update mq msg status failed. id:[" + id + "]");
+                }
                 throw new RuntimeException("update mq msg status failed. id:" + id);
             }
-            log.debug("updateStatusById : [{}] [{}]", status, id);
+            if (log.isDebugEnabled()) {
+                log.debug("updateStatusById => status:[" + status + "], id:[" + id + "]");
+            }
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } finally {
@@ -222,7 +238,9 @@ public class MqMsgDao {
             ps.setObject(++i, STATUS_PUBLISHED);
             ps.setObject(++i, gmtCreateBefore);
             int affect = ps.executeUpdate();
-            log.debug("delete mq msg published. affect : [{}] gmtCreateBefore : [{}]", affect, gmtCreateBefore);
+            if (log.isDebugEnabled()) {
+                log.debug("delete mq msg published. affect:[" + affect + "], gmtCreateBefore:[" + gmtCreateBefore + "]");
+            }
         } catch (SQLException e) {
             throw new RuntimeException(e);
         } finally {
@@ -242,7 +260,7 @@ public class MqMsgDao {
             }
         }
     }
-    
+
     @SuppressWarnings("unchecked")
     public static GenericMessage<Object> json2Message(String payload) {
         Map<String, Object> map = MqJson.fromJson(payload);
@@ -251,7 +269,7 @@ public class MqMsgDao {
         );
         return message;
     }
-    
+
     public static Map<String, Object> message2Map(Message<Object> message) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("payload", message.getPayload());

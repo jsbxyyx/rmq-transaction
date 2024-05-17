@@ -2,9 +2,9 @@ package com.github.jsbxyyx.transaction.rmq;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.rocketmq.client.producer.SendResult;
 import org.apache.rocketmq.spring.core.RocketMQTemplate;
 import org.springframework.messaging.Message;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.concurrent.ArrayBlockingQueue;
@@ -25,12 +25,12 @@ public class RMQHelper {
             Runtime.getRuntime().availableProcessors(), Runtime.getRuntime().availableProcessors() * 2,
             60000L, TimeUnit.MILLISECONDS, new ArrayBlockingQueue<>(10000),
             new ThreadFactory() {
-                final AtomicInteger ai = new AtomicInteger();
+                final AtomicInteger ai = new AtomicInteger(0);
 
                 @Override
                 public Thread newThread(Runnable r) {
                     Thread t = new Thread(r);
-                    t.setName(String.format("rmq-transaction-%d-%d", ai.getAndIncrement(), t.hashCode()));
+                    t.setName(String.format("rmq-transaction-without-%d-%d", ai.getAndIncrement(), r.hashCode()));
                     return t;
                 }
             }, new ThreadPoolExecutor.CallerRunsPolicy());
@@ -46,15 +46,28 @@ public class RMQHelper {
             TransactionSynchronizationManager.registerSynchronization(
                     new RMQTransactionSynchronization(rocketMQTemplate, destination, message, messageDelay));
         } else {
-            log.info("MQ Transaction synchronization is not active");
+            if (log.isInfoEnabled()) {
+                log.info("MQ Transaction synchronization is not active");
+            }
+            RMQWithoutTransactionSynchronization synchronization = new RMQWithoutTransactionSynchronization(
+                    rocketMQTemplate, destination, message, messageDelay
+            );
             POOL.submit(new Runnable() {
                 @Override
                 public void run() {
-                    SendResult sendResult = rocketMQTemplate.syncSend(destination, message, rocketMQTemplate.getProducer().getSendMsgTimeout(),
-                            messageDelay == null ? 0 : Integer.parseInt(messageDelay));
-                    log.info("sendResult => msgId:" + sendResult.getMsgId() + " sendStatus:" + sendResult.getSendStatus());
+                    int status = TransactionSynchronization.STATUS_UNKNOWN;
+                    try {
+                        synchronization.beforeCommit(false);
+                        synchronization.afterCommit();
+                        status = TransactionSynchronization.STATUS_COMMITTED;
+                    } finally {
+                        synchronization.afterCompletion(status);
+                    }
                 }
             });
+            if (log.isDebugEnabled()) {
+                log.debug("submit task in pool");
+            }
         }
     }
 
