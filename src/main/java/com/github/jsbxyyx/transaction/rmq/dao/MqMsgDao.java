@@ -1,5 +1,7 @@
 package com.github.jsbxyyx.transaction.rmq.dao;
 
+import com.github.jsbxyyx.transaction.rmq.dialect.LimitMqMsgDialect;
+import com.github.jsbxyyx.transaction.rmq.dialect.MqMsgDialect;
 import com.github.jsbxyyx.transaction.rmq.domain.MqMsg;
 import com.github.jsbxyyx.transaction.rmq.util.MqJson;
 import org.apache.commons.logging.Log;
@@ -13,10 +15,15 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * @author jsbxyyx
@@ -51,11 +58,34 @@ public class MqMsgDao {
     private static final String ALL_FIELD_PLACEHOLDER = "?,?,?,?,?,?,?,?,?,?";
     private static final String TABLE = "tb_mq_msg";
 
-    private static final String SQL_LIST_MSG = "SELECT #{all_field} FROM #{table} WHERE #{status} = ? AND #{retry_times} < ? LIMIT ?"//
+    private static final String SQL_LIST_MSG_BASE = "SELECT #{all_field} FROM #{table} WHERE #{status} = ? AND #{retry_times} < ?"//
             .replace("#{all_field}", ALL_FIELD)//
             .replace("#{table}", TABLE)//
             .replace("#{status}", STATUS)//
             .replace("#{retry_times}", RETRY_TIMES);
+
+    // cache resolved SQL per DataSource to avoid repeated metadata + SPI lookups
+    private static final ConcurrentHashMap<DataSource, String> SQL_LIST_MSG_CACHE = new ConcurrentHashMap<>();
+
+    private static String resolveListMsgSql(DataSource dataSource) {
+        return SQL_LIST_MSG_CACHE.computeIfAbsent(dataSource, ds -> {
+            try (Connection conn = ds.getConnection()) {
+                String productName = conn.getMetaData().getDatabaseProductName();
+                MqMsgDialect matched = new LimitMqMsgDialect();
+                for (MqMsgDialect dialect : ServiceLoader.load(MqMsgDialect.class)) {
+                    if (dialect.supports(productName) && dialect.getOrder() > matched.getOrder()) {
+                        matched = dialect;
+                    }
+                }
+                if (log.isInfoEnabled()) {
+                    log.info("MqMsgDialect resolved: " + matched.getClass().getSimpleName() + " for [" + productName + "]");
+                }
+                return matched.applyLimit(SQL_LIST_MSG_BASE);
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
 
     private static final String SQL_INSERT_MSG = "INSERT INTO #{table}(#{all_field}) VALUES (#{all_field_placeholder})"//
             .replace("#{table}", TABLE)//
@@ -103,19 +133,19 @@ public class MqMsgDao {
             .replace("#{status}", STATUS)
             .replace("#{gmt_modified}", GMT_MODIFIED);
 
-    public static List<MqMsg> listMsg(DataSource dataSource) {
+    public static List<MqMsg> listMsg(DataSource dataSource, int limit) {
         Connection conn = null;
         PreparedStatement ps = null;
         ResultSet rs = null;
         try {
             conn = dataSource.getConnection();
-            ps = conn.prepareStatement(SQL_LIST_MSG);
+            ps = conn.prepareStatement(resolveListMsgSql(dataSource));
             int i = 0;
             ps.setObject(++i, STATUS_NEW);
             ps.setObject(++i, MAX_RETRY_TIMES);
-            ps.setObject(++i, 100);
+            ps.setObject(++i, limit);
             rs = ps.executeQuery();
-            List<MqMsg> list = new ArrayList<>(100);
+            List<MqMsg> list = new ArrayList<>(limit);
             while (rs.next()) {
                 MqMsg mqMsg = new MqMsg();
                 mqMsg.setId(rs.getString(ID));
@@ -350,11 +380,22 @@ public class MqMsgDao {
         return message;
     }
 
+    // Spring built-in headers that should not be persisted (regenerated on send)
+    private static final Set<String> IGNORED_HEADERS = new HashSet<>(Arrays.asList(
+            "id", "timestamp"
+    ));
+
     public static Map<String, Object> message2Map(Message<Object> message) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("payload", message.getPayload());
-        payload.put("headers", message.getHeaders());
-        return payload;
+        Map<String, Object> filteredHeaders = new HashMap<>();
+        for (Map.Entry<String, Object> entry : message.getHeaders().entrySet()) {
+            if (!IGNORED_HEADERS.contains(entry.getKey())) {
+                filteredHeaders.put(entry.getKey(), entry.getValue());
+            }
+        }
+        Map<String, Object> map = new HashMap<>();
+        map.put("payload", message.getPayload());
+        map.put("headers", filteredHeaders);
+        return map;
     }
 
 }

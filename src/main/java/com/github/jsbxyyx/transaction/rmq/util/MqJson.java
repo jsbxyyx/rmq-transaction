@@ -19,7 +19,9 @@ public class MqJson {
     private static final JsonMapper json = JsonMapper.builder() //
             .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES) //
             .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS) //
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS) //
             .enable(MapperFeature.PROPAGATE_TRANSIENT_MARKER) //
+            .enable(DeserializationFeature.USE_LONG_FOR_INTS) //
             .build();
 
     static {

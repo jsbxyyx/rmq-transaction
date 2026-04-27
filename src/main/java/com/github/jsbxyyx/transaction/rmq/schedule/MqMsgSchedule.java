@@ -31,6 +31,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
     private static final Log log = LogFactory.getLog(MqMsgSchedule.class);
 
     private int processingTimeout;
+    private int retryLimit;
 
     private final ScheduledThreadPoolExecutor executorRetry = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
         final AtomicInteger threadCount = new AtomicInteger(0);
@@ -55,6 +56,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
         Environment env = SpringContextUtils.getApplicationContext().getEnvironment();
 
         processingTimeout = Integer.parseInt(env.getProperty("rmq.transaction.processing.timeout", "60000"));
+        retryLimit = Integer.parseInt(env.getProperty("rmq.transaction.retry.limit", "100"));
         int retryDelay = Integer.parseInt(env.getProperty("rmq.transaction.retry.delay", "5000"));
         executorRetry.scheduleWithFixedDelay(new Runnable() {
             @Override
@@ -103,7 +105,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
             Map<String, DataSource> beans = SpringContextUtils.getApplicationContext().getBeansOfType(DataSource.class);
             for (Map.Entry<String, DataSource> entry : beans.entrySet()) {
                 MqMsgDao.resetStuckProcessing(entry.getValue(), new Date(System.currentTimeMillis() - processingTimeout));
-                List<MqMsg> mqMsgList = MqMsgDao.listMsg(entry.getValue());
+                List<MqMsg> mqMsgList = MqMsgDao.listMsg(entry.getValue(), retryLimit);
                 for (MqMsg mqMsg : mqMsgList) {
                     if (mqMsg.getRetryTimes() >= MqMsgDao.MAX_RETRY_TIMES) {
                         if (log.isErrorEnabled()) {

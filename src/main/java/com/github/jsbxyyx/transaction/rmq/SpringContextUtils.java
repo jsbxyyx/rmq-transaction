@@ -3,8 +3,8 @@ package com.github.jsbxyyx.transaction.rmq;
 import java.util.Map;
 import java.util.Objects;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
@@ -16,7 +16,7 @@ import org.springframework.context.ApplicationContextAware;
  */
 public class SpringContextUtils implements ApplicationContextAware {
     
-    private static final Logger log = LoggerFactory.getLogger(SpringContextUtils.class);
+    private static final Log log = LogFactory.getLog(SpringContextUtils.class);
     
     private static ApplicationContext context;
 
