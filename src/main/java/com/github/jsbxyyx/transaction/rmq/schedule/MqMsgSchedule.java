@@ -30,7 +30,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
 
     private static final Log log = LogFactory.getLog(MqMsgSchedule.class);
 
-    private static final ScheduledThreadPoolExecutor EXECUTOR_RETRY = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
+    private final ScheduledThreadPoolExecutor executorRetry = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
         final AtomicInteger threadCount = new AtomicInteger(0);
 
         @Override
@@ -39,7 +39,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
         }
     }, new ThreadPoolExecutor.DiscardPolicy());
 
-    private static final ScheduledThreadPoolExecutor EXECUTOR_DELETE = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
+    private final ScheduledThreadPoolExecutor executorDelete = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
         final AtomicInteger threadCount = new AtomicInteger(0);
 
         @Override
@@ -53,7 +53,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
         Environment env = SpringContextUtils.getApplicationContext().getEnvironment();
 
         int retryDelay = Integer.parseInt(env.getProperty("rmq.transaction.retry.delay", "5000"));
-        EXECUTOR_RETRY.scheduleWithFixedDelay(new Runnable() {
+        executorRetry.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
                 retrySendTask();
@@ -62,7 +62,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
 
         int deleteDelay = Integer.parseInt(env.getProperty("rmq.transaction.delete.delay", "600000"));
         int deleteInterval = Integer.parseInt(env.getProperty("rmq.transaction.delete.interval", "600000"));
-        EXECUTOR_DELETE.scheduleWithFixedDelay(new Runnable() {
+        executorDelete.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
                 deletePublishedRecord(System.currentTimeMillis() - deleteInterval);
@@ -73,12 +73,12 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
     @Override
     public void destroy() throws Exception {
         try {
-            EXECUTOR_RETRY.shutdown();
+            executorRetry.shutdown();
         } catch (Exception e) {
             log.warn(e.getMessage(), e);
         }
         try {
-            EXECUTOR_DELETE.shutdown();
+            executorDelete.shutdown();
         } catch (Exception e) {
             log.warn(e.getMessage(), e);
         }

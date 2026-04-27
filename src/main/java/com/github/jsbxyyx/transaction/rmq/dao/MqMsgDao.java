@@ -96,7 +96,7 @@ public class MqMsgDao {
             List<MqMsg> list = new ArrayList<>(100);
             while (rs.next()) {
                 MqMsg mqMsg = new MqMsg();
-                mqMsg.setId(rs.getLong(ID));
+                mqMsg.setId(rs.getString(ID));
                 mqMsg.setStatus(rs.getString(STATUS));
                 mqMsg.setMqTemplateName(rs.getString(MQ_TEMPLATE_NAME));
                 mqMsg.setMqDestination(rs.getString(MQ_DESTINATION));
@@ -116,7 +116,7 @@ public class MqMsgDao {
         }
     }
 
-    public static void insertMsg(Connection connection, long id, String mqTemplateName,
+    public static void insertMsg(Connection connection, String id, String mqTemplateName,
                                  String mqDestination, Message<Object> message, String messageDelay) {
         PreparedStatement ps = null;
         Map<String, Object> payload = message2Map(message);
@@ -151,7 +151,7 @@ public class MqMsgDao {
         }
     }
 
-    public static void updateMsgRetryTimes(DataSource dataSource, Long id) {
+    public static void updateMsgRetryTimes(DataSource dataSource, String id) {
         Connection conn = null;
         PreparedStatement ps = null;
         try {
@@ -177,7 +177,7 @@ public class MqMsgDao {
         }
     }
 
-    public static void deleteMsgById(DataSource dataSource, Long id) {
+    public static void deleteMsgById(DataSource dataSource, String id) {
         Connection conn = null;
         PreparedStatement ps = null;
         try {
@@ -202,7 +202,7 @@ public class MqMsgDao {
         }
     }
 
-    public static void updateStatusById(DataSource dataSource, String status, Long id) {
+    public static void updateStatusById(DataSource dataSource, String status, String id) {
         Connection conn = null;
         PreparedStatement ps = null;
         try {

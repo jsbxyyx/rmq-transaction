@@ -24,7 +24,7 @@ public class RMQWithoutTransactionSynchronization implements TransactionSynchron
     protected final Log log = LogFactory.getLog(getClass());
 
     private DataSource dataSource;
-    private Long id;
+    private String id;
     private RocketMQTemplate rocketMQTemplate;
     private String destination;
     private Message<Object> message;
@@ -47,10 +47,31 @@ public class RMQWithoutTransactionSynchronization implements TransactionSynchron
         this.dataSource = SpringContextUtils.getBean(DataSource.class);
         this.id = MqId.nextId();
         final String mqTemplateName = SpringContextUtils.findBeanName(rocketMQTemplate.getClass(), rocketMQTemplate);
-        try (Connection connection = dataSource.getConnection()) {
+        if (mqTemplateName == null) {
+            throw new IllegalStateException("Cannot find bean name for RocketMQTemplate instance, bean may not be managed by Spring");
+        }
+        Connection connection = null;
+        try {
+            connection = dataSource.getConnection();
             MqMsgDao.insertMsg(connection, id, mqTemplateName, destination, message, messageDelay);
+            if (!connection.getAutoCommit()) {
+                connection.commit();
+            }
         } catch (SQLException e) {
+            if (connection != null) {
+                try {
+                    connection.rollback();
+                } catch (SQLException ignore) {
+                }
+            }
             throw new RuntimeException(e);
+        } finally {
+            if (connection != null) {
+                try {
+                    connection.close();
+                } catch (SQLException ignore) {
+                }
+            }
         }
     }
 

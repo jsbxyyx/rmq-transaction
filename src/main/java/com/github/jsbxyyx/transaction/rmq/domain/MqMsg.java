@@ -8,7 +8,7 @@ import java.util.Date;
  */
 public class MqMsg {
 
-    private Long id;
+    private String id;
     private String status;
     private String mqTemplateName;
     private String mqDestination;
@@ -20,11 +20,11 @@ public class MqMsg {
     private Date gmtCreate;
     private Date gmtModified;
 
-    public Long getId() {
+    public String getId() {
         return id;
     }
 
-    public MqMsg setId(Long id) {
+    public MqMsg setId(String id) {
         this.id = id;
         return this;
     }

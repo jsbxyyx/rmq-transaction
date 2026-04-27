@@ -5,6 +5,7 @@ import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
@@ -47,6 +48,10 @@ public class SpringContextUtils implements ApplicationContextAware {
         for (Map.Entry<String, ?> entry : beans.entrySet()) {
             Object value = entry.getValue();
             if (value == obj) {
+                return entry.getKey();
+            }
+            Object target = AopProxyUtils.getSingletonTarget(value);
+            if (target != null && target == obj) {
                 return entry.getKey();
             }
         }

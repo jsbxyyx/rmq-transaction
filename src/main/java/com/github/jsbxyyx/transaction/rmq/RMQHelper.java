@@ -60,6 +60,8 @@ public class RMQHelper {
                         synchronization.beforeCommit(false);
                         synchronization.afterCommit();
                         status = TransactionSynchronization.STATUS_COMMITTED;
+                    } catch (Exception e) {
+                        log.error("non-transactional message send failed. destination:[" + destination + "]", e);
                     } finally {
                         synchronization.afterCompletion(status);
                     }

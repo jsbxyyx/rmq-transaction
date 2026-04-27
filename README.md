@@ -12,7 +12,7 @@ Sending message consistency based on RocketMQ
 </dependency>
 
 CREATE TABLE `tb_mq_msg` (
-  `id` BIGINT NOT NULL,
+  `id` VARCHAR(36) NOT NULL,
   `status` VARCHAR(20) NOT NULL COMMENT '事件状态(待发布NEW)',
   `mq_template_name` VARCHAR(1000) NOT NULL,
   `mq_destination` VARCHAR(1000) NOT NULL,
@@ -25,6 +25,9 @@ CREATE TABLE `tb_mq_msg` (
   PRIMARY KEY (`id`),
   KEY `idx_status` (`status`)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+迁移执行：
+1.0.0 迁移到最新 ALTER TABLE tb_mq_msg MODIFY COLUMN id VARCHAR(36) NOT NULL;
 ```
 
 # samples

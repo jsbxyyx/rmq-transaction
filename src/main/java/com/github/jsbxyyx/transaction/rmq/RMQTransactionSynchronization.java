@@ -25,7 +25,7 @@ public class RMQTransactionSynchronization implements TransactionSynchronization
 
     private DataSource dataSource;
     private ConnectionHolder connectionHolder;
-    private Long id;
+    private String id;
     private RocketMQTemplate rocketMQTemplate;
     private String destination;
     private Message<Object> message;
@@ -63,11 +63,17 @@ public class RMQTransactionSynchronization implements TransactionSynchronization
         }
         this.id = MqId.nextId();
         final String mqTemplateName = SpringContextUtils.findBeanName(rocketMQTemplate.getClass(), rocketMQTemplate);
+        if (mqTemplateName == null) {
+            throw new IllegalStateException("Cannot find bean name for RocketMQTemplate instance, bean may not be managed by Spring");
+        }
         MqMsgDao.insertMsg(connectionHolder.getConnection(), id, mqTemplateName, destination, message, messageDelay);
     }
 
     @Override
     public void afterCommit() {
+        if (this.id == null) {
+            return;
+        }
         if (log.isDebugEnabled()) {
             log.debug("afterCommit " + TransactionSynchronizationManager.getCurrentTransactionName());
         }
