@@ -1,19 +1,14 @@
 # rmq transaction
 Sending message consistency based on RocketMQ
 
+[![rmq-transaction](https://img.shields.io/maven-central/v/io.github.jsbxyyx/rmq-transaction?label=rmq-transaction)](https://central.sonatype.com/artifact/io.github.jsbxyyx/rmq-transaction)
+
 # how to use
 ```
-<repositories>
-    <repository>
-        <id>jitpack.io</id>
-        <url>https://jitpack.io</url>
-    </repository>
-</repositories>
-
 <dependency>
-    <groupId>com.github.jsbxyyx</groupId>
+    <groupId>io.github.jsbxyyx</groupId>
     <artifactId>rmq-transaction</artifactId>
-    <version>main-SNAPSHOT</version>
+    <version>${rmq-transaction.version}</version>
 </dependency>
 
 CREATE TABLE `tb_mq_msg` (
