@@ -30,6 +30,8 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
 
     private static final Log log = LogFactory.getLog(MqMsgSchedule.class);
 
+    private int processingTimeout;
+
     private final ScheduledThreadPoolExecutor executorRetry = new ScheduledThreadPoolExecutor(1, new ThreadFactory() {
         final AtomicInteger threadCount = new AtomicInteger(0);
 
@@ -52,6 +54,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
     public void afterPropertiesSet() throws Exception {
         Environment env = SpringContextUtils.getApplicationContext().getEnvironment();
 
+        processingTimeout = Integer.parseInt(env.getProperty("rmq.transaction.processing.timeout", "60000"));
         int retryDelay = Integer.parseInt(env.getProperty("rmq.transaction.retry.delay", "5000"));
         executorRetry.scheduleWithFixedDelay(new Runnable() {
             @Override
@@ -99,6 +102,7 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
         try {
             Map<String, DataSource> beans = SpringContextUtils.getApplicationContext().getBeansOfType(DataSource.class);
             for (Map.Entry<String, DataSource> entry : beans.entrySet()) {
+                MqMsgDao.resetStuckProcessing(entry.getValue(), new Date(System.currentTimeMillis() - processingTimeout));
                 List<MqMsg> mqMsgList = MqMsgDao.listMsg(entry.getValue());
                 for (MqMsg mqMsg : mqMsgList) {
                     if (mqMsg.getRetryTimes() >= MqMsgDao.MAX_RETRY_TIMES) {
@@ -106,6 +110,9 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
                             log.error("mqMsg retry times reach " + MqMsgDao.MAX_RETRY_TIMES + ", id:[" + mqMsg.getId() + "]");
                         }
                     } else {
+                        if (!MqMsgDao.claimMsg(entry.getValue(), mqMsg.getId())) {
+                            continue;
+                        }
                         RocketMQTemplate template = (RocketMQTemplate) SpringContextUtils
                                 .getBean(mqMsg.getMqTemplateName());
                         try {
@@ -118,13 +125,13 @@ public class MqMsgSchedule implements InitializingBean, DisposableBean {
                             if (sendResult.getSendStatus() == SendStatus.SEND_OK) {
                                 MqMsgDao.updateStatusById(entry.getValue(), MqMsgDao.STATUS_PUBLISHED, mqMsg.getId());
                             } else {
-                                MqMsgDao.updateMsgRetryTimes(entry.getValue(), mqMsg.getId());
+                                MqMsgDao.releaseMsg(entry.getValue(), mqMsg.getId());
                                 if (log.isErrorEnabled()) {
                                     log.error("[task] mq send message failed. sendStatus:[" + sendResult.getSendStatus() + "]");
                                 }
                             }
                         } catch (Exception e) {
-                            MqMsgDao.updateMsgRetryTimes(entry.getValue(), mqMsg.getId());
+                            MqMsgDao.releaseMsg(entry.getValue(), mqMsg.getId());
                             if (log.isErrorEnabled()) {
                                 log.error("[task] mq send failed. mqMsg:[" + mqMsg + "]", e);
                             }

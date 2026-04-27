@@ -27,6 +27,7 @@ public class MqMsgDao {
     private static final Log log = LogFactory.getLog(MqMsgDao.class);
 
     public static final String STATUS_NEW = "NEW";
+    public static final String STATUS_PROCESSING = "PROCESSING";
     public static final String STATUS_PUBLISHED = "PUBLISHED";
     public static final Integer MAX_RETRY_TIMES = 5;
 
@@ -80,6 +81,27 @@ public class MqMsgDao {
             .replace("#{table}", TABLE)
             .replace("#{status}", STATUS)
             .replace("#{gmt_create}", GMT_CREATE);
+
+    // NEW → PROCESSING (atomic claim, affected=0 means another instance won)
+    private static final String SQL_CLAIM_MSG = "update #{table} set #{status} = ?, #{gmt_modified} = ? where #{id} = ? and #{status} = ?"
+            .replace("#{table}", TABLE)
+            .replace("#{status}", STATUS)
+            .replace("#{gmt_modified}", GMT_MODIFIED)
+            .replace("#{id}", ID);
+
+    // PROCESSING → NEW + retry_times++ (release on send failure)
+    private static final String SQL_RELEASE_MSG = "update #{table} set #{status} = ?, #{retry_times} = #{retry_times} + 1, #{gmt_modified} = ? where #{id} = ?"
+            .replace("#{table}", TABLE)
+            .replace("#{status}", STATUS)
+            .replace("#{retry_times}", RETRY_TIMES)
+            .replace("#{gmt_modified}", GMT_MODIFIED)
+            .replace("#{id}", ID);
+
+    // Reset stuck PROCESSING records (crash recovery)
+    private static final String SQL_RESET_STUCK_PROCESSING = "update #{table} set #{status} = ? where #{status} = ? and #{gmt_modified} < ?"
+            .replace("#{table}", TABLE)
+            .replace("#{status}", STATUS)
+            .replace("#{gmt_modified}", GMT_MODIFIED);
 
     public static List<MqMsg> listMsg(DataSource dataSource) {
         Connection conn = null;
@@ -240,6 +262,64 @@ public class MqMsgDao {
             int affect = ps.executeUpdate();
             if (log.isDebugEnabled()) {
                 log.debug("delete mq msg published. affect:[" + affect + "], gmtCreateBefore:[" + gmtCreateBefore + "]");
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(ps, conn);
+        }
+    }
+
+    public static boolean claimMsg(DataSource dataSource, String id) {
+        Connection conn = null;
+        PreparedStatement ps = null;
+        try {
+            conn = dataSource.getConnection();
+            ps = conn.prepareStatement(SQL_CLAIM_MSG);
+            int i = 0;
+            ps.setObject(++i, STATUS_PROCESSING);
+            ps.setObject(++i, new Date());
+            ps.setObject(++i, id);
+            ps.setObject(++i, STATUS_NEW);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(ps, conn);
+        }
+    }
+
+    public static void releaseMsg(DataSource dataSource, String id) {
+        Connection conn = null;
+        PreparedStatement ps = null;
+        try {
+            conn = dataSource.getConnection();
+            ps = conn.prepareStatement(SQL_RELEASE_MSG);
+            int i = 0;
+            ps.setObject(++i, STATUS_NEW);
+            ps.setObject(++i, new Date());
+            ps.setObject(++i, id);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        } finally {
+            close(ps, conn);
+        }
+    }
+
+    public static void resetStuckProcessing(DataSource dataSource, Date gmtModifiedBefore) {
+        Connection conn = null;
+        PreparedStatement ps = null;
+        try {
+            conn = dataSource.getConnection();
+            ps = conn.prepareStatement(SQL_RESET_STUCK_PROCESSING);
+            int i = 0;
+            ps.setObject(++i, STATUS_NEW);
+            ps.setObject(++i, STATUS_PROCESSING);
+            ps.setObject(++i, gmtModifiedBefore);
+            int affect = ps.executeUpdate();
+            if (affect > 0 && log.isWarnEnabled()) {
+                log.warn("reset stuck processing mq msg. affect:[" + affect + "]");
             }
         } catch (SQLException e) {
             throw new RuntimeException(e);
